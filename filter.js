@@ -65,7 +65,11 @@ const tasks = {
                     json.claims = Object.keys( json.claims )
                                     .filter( c => this.frProperties.includes(c) )
                                     .reduce( (result,propertyId) => {
-                                        result[ propertyId ] = json.claims[ propertyId ]
+                                        let claim = json.claims[ propertyId ]
+
+                                        
+
+                                        result[ propertyId ] = claim
                                         return result
                                     } , {} )
                 }
