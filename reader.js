@@ -1,13 +1,11 @@
-//const SOURCE='D:\\wikidata\\latest-all.json\\latest-all.json'
 const MAX_SCAN_SIZE = 1 * 1024 * 1024 * 1024
 const SCAN_SPEED_PERIOD = 60 // seconds
-//let TASK = process.argv[2]
 
 const fs = require( 'fs' )
 const readline = require( 'readline' )
 const stream = require( 'stream' )
 
-module.exports = ( SOURCE , task , send ) => {
+module.exports = ( SOURCE , task , sendWork ) => {
 
     let inStream = fs.createReadStream( SOURCE );
     let outStream = new stream();
@@ -53,7 +51,7 @@ module.exports = ( SOURCE , task , send ) => {
             console.error( 'max scan size, close' , scanSize )
         }
 
-        send( line )
+        sendWork( line )
 
         lineCount += 1
         
