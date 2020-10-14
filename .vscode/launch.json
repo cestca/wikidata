@@ -11,8 +11,18 @@
             "skipFiles": [
                 "<node_internals>/**"
             ],
-            "program": "${workspaceFolder}\\filter.js",
+            "program": "${workspaceFolder}\\main.js",
             "args": [ "select_lang" ]
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "property_stats",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "program": "${workspaceFolder}\\main.js",
+            "args": [ "property_stats" ]
         }
     ]
 }
