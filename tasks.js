@@ -88,22 +88,72 @@ module.exports = {
                     json.claims = Object.keys( json.claims )
                                     .filter( c => this.frProperties.includes(c) )
                                     .reduce( (claims,propertyId) => {
-                                        let claim = json.claims[ propertyId ]
 
-                                        claim.qualifiers = Object.keys(claim.qualifiers)
-                                                            .filter( q => {
-                                                                if( this.frProperties.includes(q) ){
-                                                                    return true
-                                                                } else {
-                                                                    claim['qualifiers-order'].splice( claim['qualifiers-order'].indexOf(q) , 1 )
-                                                                    return false
-                                                                }
-                                                            } )
-                                                            .reduce( (qualifiers,qualifierId) => {
+                                        json.claims[ propertyId ].forEach( claim => {
 
-                                                            } , {} )
+                                            if( claim.references ){
 
-                                        claims[ propertyId ] = claim
+                                                claim.references.forEach( reference => {
+
+                                                    if( reference.snaks ){
+                                                        reference.snaks = Object.keys(reference.snaks)
+                                                                            .filter( s => {
+                                                                                if( this.frProperties.includes(s) ){
+                                                                                    return true
+                                                                                } else {
+                                                                                    reference['snaks-order'].splice( reference['snaks-order'].indexOf(s) , 1 )
+                                                                                    return false
+                                                                                }
+                                                                            } )
+                                                                            .reduce( (snaks,snakId) => {
+                                                                                reference.snaks[snakId] = reference.snaks[snakId].filter( snack => {
+                                                                                    if( snack.datavalue && snack.datavalue.value && snack.datavalue.value.language != 'fr' ){
+                                                                                        reference['snaks-order'].splice( reference['snaks-order'].indexOf(snakId) , 1 )
+                                                                                        return false
+                                                                                    } else {
+                                                                                        return true
+                                                                                    }
+                                                                                })
+
+                                                                                if( reference.snaks[snakId].length > 0 ){
+                                                                                    snaks[ snakId ] = reference.snaks[snakId]
+                                                                                }
+                                                                                return snaks
+                                                                            } , {} )
+                                                    }
+
+
+                                                })
+
+
+                                            }
+
+                                            if( claim.qualifiers ){
+
+                                                claim.qualifiers = Object.keys(claim.qualifiers)
+                                                .filter( q => {
+                                                    if( this.frProperties.includes(q) ){
+                                                        return true
+                                                    } else {
+                                                        claim['qualifiers-order'].splice( claim['qualifiers-order'].indexOf(q) , 1 )
+                                                        return false
+                                                    }
+                                                } )
+                                                .reduce( (qualifiers,qualifierId) => {
+                                                    qualifiers[qualifierId] = claim.qualifiers[qualifierId]
+                                                    
+                                                } , {} )
+
+                                            }
+
+
+
+
+
+
+                                        })
+
+
                                         return claims
                                     } , {} )
                 }

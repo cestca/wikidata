@@ -1,4 +1,4 @@
-const MAX_SCAN_SIZE = 1 * 1024 * 1024 * 1024
+const MAX_SCAN_SIZE = 10 * 1024 * 1024 //* 1024
 const SCAN_SPEED_PERIOD = 60 // seconds
 
 const fs = require( 'fs' )
