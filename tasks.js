@@ -1,9 +1,16 @@
 const { type } = require('os')
 
+let handleMessage = function( message ){
+    if( message.method && message.method.length > 0 ){
+        this[ message.method ]( message )
+   }
+}
+
 module.exports = {
 
     'property_stats': {
         clusterable: false,
+        handleMessage,
         initProperty( property ){
             if( this.properties == null ){
                 this.properties = {}
@@ -74,6 +81,7 @@ module.exports = {
     'select_lang': {
         clusterable: true,
         isFirst: true,
+        handleMessage,
         start(){
             this.isFirst = true
             this.frProperties = Object.keys( require( './property_stats.json' ) )
@@ -130,6 +138,7 @@ module.exports = {
         }
     }
 }
+
 
 const filterKeys = ( target , targetProperty , only , listProperty , filterValue ) => {
 
