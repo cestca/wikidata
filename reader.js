@@ -28,7 +28,6 @@ module.exports = ( SOURCE , task , sendWork ) => {
     reader.on('resume', function(){ console.error( 'READER RESUME' ) } )
     
     reader.on('close', function() {
-        //console.log( '}' )
         console.error( 'END OF FILE' )
         task.end()
         let scanEnd = new Date()
@@ -51,7 +50,7 @@ module.exports = ( SOURCE , task , sendWork ) => {
             console.error( 'max scan size, close' , scanSize )
         }
 
-        sendWork( line )
+        sendWork( line , scanSpeed )
 
         lineCount += 1
         

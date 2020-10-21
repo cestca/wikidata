@@ -1,10 +1,11 @@
 const SOURCE = 'D:\\wikidata\\latest-all.json\\latest-all.json'
 const IS_CLUSTER = true
-const CLUSTER_WORKERS = 2
+let CLUSTER_WORKERS = 2
 
 const cluster = IS_CLUSTER ? require( 'cluster' ) : null
 const tasks = require( './tasks.js' )
 const read = require( './reader.js' )
+const { kill } = require('process')
 
 let TASK = process.argv[2]
 
@@ -13,7 +14,10 @@ if( TASK == null || TASK.trim().length == 0 || ! Object.keys(tasks).includes(TAS
     process.exit(1)
 }
 
-let work = ( taskName , line , reply ) => {
+let workers = []
+let task = tasks[ TASK ]
+
+const work = ( line , reply ) => {
 
     if( line != '[' && line != ']' ){
 
@@ -26,7 +30,7 @@ let work = ( taskName , line , reply ) => {
         }
 
         try{
-            tasks[ taskName ].step( json , reply )
+            task.step( json , reply )
         }catch( e ){
             console.error( 'ERROR IN TASK' , e.message )
         }
@@ -34,34 +38,63 @@ let work = ( taskName , line , reply ) => {
 
 }
 
+const createWorker = () => {
+
+    let worker = cluster.fork()
+    worker.on( 'message' , (message) => { task.handleMessage(message) } )
+    worker.on( 'online' , () => { console.error( 'WORKER IS ONLINE' , worker.id ) }  )
+    worker.on( 'listening' , () => { console.error( 'WORKER LSTENING' , worker.id ) } )
+    worker.on( 'disconnect' , () => { console.error( 'WORKER DISCONNECTED' , worker.id ) } )
+    worker.on( 'exit' , () => { console.error( 'WORKER EXIT' , worker.id ) } )
+    workers.push( worker )
+    CLUSTER_WORKERS = workers.length
+
+}
+
+const removeWorker = () => {
+    workers.pop()
+    CLUSTER_WORKERS = workers.length
+}
+
+const adjustCluster = ( workerCount ) => {
+
+    while( workers.length < workerCount ){
+        createWorker()
+    }
+
+    while( workers.length > workerCount ){
+        removeWorker()
+    }
+
+}
+
 if( ! IS_CLUSTER || cluster.isMaster ){
 
-    let task = tasks[TASK]
-    let workers = []
-
     if( IS_CLUSTER ){
-        while( workers.length < CLUSTER_WORKERS ){
-            let worker = cluster.fork( { TASK } )
-            worker.on( 'message' , (message) => { task.handleMessage(message) } )
-            worker.on( 'online' , () => { console.error( 'WORKER IS ONLINE' , worker.id ) }  )
-            worker.on( 'listening' , () => { console.error( 'WORKER LSTENING' , worker.id ) } )
-            worker.on( 'disconnect' , () => { console.error( 'WORKER DISCONNECTED' , worker.id ) } )
-            worker.on( 'exit' , () => { console.error( 'WORKER EXIT' , worker.id ) } )
-            workers.push( worker )
-        }
+        adjustCluster( CLUSTER_WORKERS )
     }
 
     let lineCount = 0
+    let lastReadSpeeds = []
 
-    read( SOURCE , task , ( line ) => {
+    read( SOURCE , task , ( line , readSpeed ) => {
 
         lineCount += 1
 
         if( IS_CLUSTER ){
+
+            if( readSpeed > 0 ){
+                lastReadSpeeds[ CLUSTER_WORKERS ] = readSpeed
+            }
+
+            if( lastReadSpeeds[ CLUSTER_WORKERS + 1 ] == null ){
+
+            }
+
             workers[ lineCount % workers.length ].send( line )
 
         } else {
-            work( TASK , line , ( message ) => { task.handleMessage( message ) } )
+            work( line , ( message ) => { task.handleMessage( message ) } )
 
         }
 
@@ -73,7 +106,7 @@ if( ! IS_CLUSTER || cluster.isMaster ){
 } else {
 
     process.on( 'message' , ( message ) => {
-        work( TASK , message , (reply) => {
+        work( message , (reply) => {
             process.send(reply)
         } )
     } )
