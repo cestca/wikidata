@@ -52,7 +52,8 @@ const createWorker = () => {
 }
 
 const removeWorker = () => {
-    workers.pop()
+    let worker = workers.pop()
+    worker.send( { method: 'exit' } )
     CLUSTER_WORKERS = workers.length
 }
 
@@ -104,6 +105,10 @@ if( ! IS_CLUSTER || cluster.isMaster ){
 
         if( task.end ){ task.end() }
 
+        workers.forEach( w => {
+            w.send( { method: 'exit' } )
+        })
+
     })
 
 
@@ -112,9 +117,19 @@ if( ! IS_CLUSTER || cluster.isMaster ){
 } else {
 
     process.on( 'message' , ( message ) => {
-        work( message , (reply) => {
-            process.send(reply)
-        } )
+
+        if( message.method && message.method && message.method == 'exit' ){
+            
+            process.exit( 0 )
+        
+        } else {
+
+            work( message , (reply) => {
+                process.send(reply)
+            } )
+    
+        }
+
     } )
 
 }
