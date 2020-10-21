@@ -77,7 +77,9 @@ if( ! IS_CLUSTER || cluster.isMaster ){
     let lineCount = 0
     let lastReadSpeeds = []
 
-    read( SOURCE , task , ( line , readSpeed ) => {
+    if( task.start ){ task.start() }
+
+    read( SOURCE , ( line , readSpeed ) => {
 
         lineCount += 1
 
@@ -98,7 +100,11 @@ if( ! IS_CLUSTER || cluster.isMaster ){
 
         }
 
-    } )
+    } ).then( () => {
+
+        if( task.end ){ task.end() }
+
+    })
 
 
 

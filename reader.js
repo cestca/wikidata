@@ -1,13 +1,13 @@
-const MAX_SCAN_SIZE = 0 //1 * 1024 * 1024 * 1024
+const MAX_SCAN_SIZE = 1 * 1024 * 1024 * 1024
 const SCAN_SPEED_PERIOD = 60 // seconds
 
 const fs = require( 'fs' )
 const readline = require( 'readline' )
 const stream = require( 'stream' )
 
-module.exports = ( SOURCE , task , sendWork ) => {
+module.exports = ( source , sendLine ) => new Promise( (resolve,reject) => {
 
-    let inStream = fs.createReadStream( SOURCE );
+    let inStream = fs.createReadStream( source );
     let outStream = new stream();
     let reader = readline.createInterface(inStream, outStream);
     
@@ -19,7 +19,6 @@ module.exports = ( SOURCE , task , sendWork ) => {
     let scanSpeedStart = Date.now()
     
     console.error( 'SCAN START' , scanStart.toString() )
-    if( task.start ){ task.start() }
     
     reader.on( 'SIGINT' , function(){ console.error( 'READER SIGINT' , lineCount ) } )
     reader.on( 'SIGCONT' , function(){ console.error( 'READER SIGCONT' , lineCount ) } )
@@ -29,7 +28,6 @@ module.exports = ( SOURCE , task , sendWork ) => {
     
     reader.on('close', function() {
         console.error( 'END OF FILE' )
-        task.end()
         let scanEnd = new Date()
         let period = Math.round( (scanEnd - scanStart) / 1000 )
         let scanMeanSpeed = Math.round( scanSize / period )
@@ -38,7 +36,7 @@ module.exports = ( SOURCE , task , sendWork ) => {
         console.error( 'line count' , lineCount )
         console.error( 'scan size (bytes)' , scanSize )
         console.error( 'scan mean speed (B/s)' , scanMeanSpeed )
-        process.exit(0)
+        resolve()
     })
     
     reader.on( 'line' , function( line ) {
@@ -50,7 +48,7 @@ module.exports = ( SOURCE , task , sendWork ) => {
             console.error( 'max scan size, close' , scanSize )
         }
 
-        sendWork( line , scanSpeed )
+        sendLine( line , scanSpeed )
 
         lineCount += 1
         
@@ -68,4 +66,4 @@ module.exports = ( SOURCE , task , sendWork ) => {
     
     })
 
-}
+} )
