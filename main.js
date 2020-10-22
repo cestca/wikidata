@@ -76,7 +76,7 @@ if( ! IS_CLUSTER || cluster.isMaster ){
     }
 
     let lineCount = 0
-    let lastReadSpeeds = []
+    let speeds = []
 
     if( task.start ){ task.start() }
 
@@ -86,12 +86,22 @@ if( ! IS_CLUSTER || cluster.isMaster ){
 
         if( IS_CLUSTER ){
 
-            if( readSpeed > 0 ){
-                lastReadSpeeds[ CLUSTER_WORKERS ] = readSpeed
-            }
+            if( readSpeed > 0 && readSpeed != speeds[ CLUSTER_WORKERS ] ){
+                speeds[ CLUSTER_WORKERS ] = readSpeed
 
-            if( lastReadSpeeds[ CLUSTER_WORKERS + 1 ] == null ){
-
+                if( speeds[ CLUSTER_WORKERS ] 
+                    && speeds[ CLUSTER_WORKERS - 1 ]
+                    && speeds[ CLUSTER_WORKERS ] < speeds[ CLUSTER_WORKERS - 1 ] ){
+                        adjustCluster( CLUSTER_WORKERS - 1 )
+                
+                } else if( speeds[ CLUSTER_WORKERS ] 
+                    && speeds[ CLUSTER_WORKERS + 1 ]
+                    && speeds[ CLUSTER_WORKERS ] < speeds[ CLUSTER_WORKERS + 1 ] ){
+                        adjustCluster( CLUSTER_WORKERS + 1 )
+                
+                } else if( speeds[ CLUSTER_WORKERS ] && speeds[ CLUSTER_WORKERS + 1 ] == null ){
+                    adjustCluster( CLUSTER_WORKERS + 1 )
+                }
             }
 
             workers[ lineCount % workers.length ].send( line )
@@ -119,7 +129,7 @@ if( ! IS_CLUSTER || cluster.isMaster ){
     process.on( 'message' , ( message ) => {
 
         if( message.method && message.method && message.method == 'exit' ){
-            
+
             process.exit( 0 )
         
         } else {

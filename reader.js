@@ -1,5 +1,5 @@
-const MAX_SCAN_SIZE = 1 * 1024 * 1024 * 1024
-const SCAN_SPEED_PERIOD = 60 // seconds
+const MAX_SCAN_SIZE = 10 * 1024 * 1024 * 1024
+const SCAN_SPEED_PERIOD = 10 // seconds
 
 const fs = require( 'fs' )
 const readline = require( 'readline' )
@@ -56,7 +56,7 @@ module.exports = ( source , sendLine ) => new Promise( (resolve,reject) => {
         scanSize += size
         scanSpeedBuffer += size
     
-        let period = Math.round( ( scanSpeedStart - Date.now() ) / 1000 )
+        let period = Math.round( ( Date.now() - scanSpeedStart ) / 1000 )
     
         if( period > SCAN_SPEED_PERIOD ){
             scanSpeed = Math.round( scanSpeedBuffer / period )
