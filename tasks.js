@@ -1,5 +1,3 @@
-const { type } = require('os')
-
 let handleMessage = function( message ){
     if( message.method && message.method.length > 0 ){
         this[ message.method ]( message )
