@@ -1,6 +1,6 @@
 const SOURCE = 'D:\\wikidata\\latest-all.json\\latest-all.json'
 const IS_CLUSTER = true
-let CLUSTER_WORKERS = 1
+//let CLUSTER_WORKERS = 2
 
 const cluster = IS_CLUSTER ? require( 'cluster' ) : null
 const tasks = require( './tasks.js' )
@@ -13,7 +13,6 @@ if( TASK == null || TASK.trim().length == 0 || ! Object.keys(tasks).includes(TAS
     process.exit(1)
 }
 
-let workers = []
 let task = tasks[ TASK ]
 
 const work = ( line , reply ) => {
@@ -37,105 +36,136 @@ const work = ( line , reply ) => {
 
 }
 
-const createWorker = () => {
 
-    let worker = cluster.fork()
-    worker.on( 'message' , (message) => { task.handleMessage(message) } )
-    worker.on( 'online' , () => { console.error( 'WORKER IS ONLINE' , worker.id ) }  )
-    worker.on( 'listening' , () => { console.error( 'WORKER LSTENING' , worker.id ) } )
-    worker.on( 'disconnect' , () => { console.error( 'WORKER DISCONNECTED' , worker.id ) } )
-    worker.on( 'exit' , () => { console.error( 'WORKER EXIT' , worker.id ) } )
-    workers.push( worker )
-    CLUSTER_WORKERS = workers.length
+const Worker = {
+    all: [],
+    roundRobin: 0,
 
-}
+    pick(){
+        let worker = this.all[ this.roundRobin % this.all.length ]
+        this.roundRobin += 1
+        return worker
+    },
 
-const removeWorker = () => {
-    let worker = workers.pop()
-    worker.send( { method: 'exit' } )
-    CLUSTER_WORKERS = workers.length
-}
+    // idle(){},
 
-const adjustCluster = ( workerCount ) => {
+    hire(){
+        let worker = cluster.fork()
+        worker.index = this.all.length
+        worker.on( 'message' , (message) => { task.handleMessage(message) } )
+        worker.on( 'online' , () => { console.error( 'WORKER IS ONLINE' , worker.index ) }  )
+        worker.on( 'listening' , () => { console.error( 'WORKER LISTENING' , worker.index ) } )
+        //worker.on( 'disconnect' , () => { console.error( 'WORKER DISCONNECTED' , worker.index ) } )
+        worker.on( 'exit' , () => { console.error( 'WORKER EXIT' , worker.index ) } )
+        this.all.push( worker )
+    },
 
-    while( workers.length < workerCount ){
-        createWorker()
+    fire(){
+        if( this.all.length > 1 ){
+            let worker = this.all.pop()
+            worker.send( { method: 'exit' } )    
+        }
     }
-
-    while( workers.length > workerCount ){
-        removeWorker()
-    }
-
 }
+
+// const adjustCluster = ( workerCount ) => {
+//     while( workers.length < workerCount ){
+//         createWorker()
+//     }
+//     while( workers.length > workerCount ){
+//         removeWorker()
+//     }
+// }
 
 if( ! IS_CLUSTER || cluster.isMaster ){
 
     if( IS_CLUSTER ){
-        adjustCluster( CLUSTER_WORKERS )
+        Worker.hire()
+        //Worker.hire()
+
+        //adjustCluster( CLUSTER_WORKERS )
     }
 
-    let lineCount = 0
-    let speeds = []
-    let lastReadSpeed = 0
-//    let lastSpeeds = []
+//    let lineCount = 0
+//    let speeds = []
+//    let lastReadSpeed = 0
+    let lastReadSpeeds = []
+    // let lastOps = []
+    // let maxSpeed = 0
+
+    let lastOp = null
+    let strikeDown = 0
+    let strikeUp = 0
 
     if( task.start ){ task.start() }
 
     read( SOURCE , ( line , readSpeed ) => {
 
-        lineCount += 1
+//        lineCount += 1
 
         if( IS_CLUSTER ){
 
+            /* ADJUST CLUSTER - TRY 2 */
+            if( readSpeed > 0 && lastReadSpeeds[0] != readSpeed ){
+                //if( readSpeed > maxSpeed ){ maxSpeed = readSpeed }
+                lastReadSpeeds.unshift( readSpeed )
+                while( lastReadSpeeds.length > 2 ){
+                    lastReadSpeeds.pop()
+                }
+                let op = null
+                if( lastReadSpeeds.length >= 2 ){
+
+                    if( lastReadSpeeds[0] > lastReadSpeeds[1] && lastOp == 'hire' ) {
+                        op = 'hire'
+
+                    } else if( lastReadSpeeds[0] < lastReadSpeeds[1] && lastOp == 'hire' ){
+                        strikeDown += 1
+                        if( strikeDown >= 3 ){
+                            op = 'fire'
+                            strikeDown = 0
+                        }
+
+                    } else if( lastReadSpeeds[0] >= lastReadSpeeds[1] && lastOp == 'fire' ) {
+                        op = null
+                        strikeDown = 0
+
+                    } else if( lastReadSpeeds[0] < lastReadSpeeds[1] && lastOp == 'fire' ){
+                        op = 'hire'
+                        strikeDown = 0
+                    }
+
+                } else {
+                    op = 'hire'
+                }
+
+                if( op != null ){
+                    Worker[ op ]()
+                    lastOp = op
+                }
+
+                // lastOps.unshift( op )
+                // while( lastOps.length > 5  ){
+                //     lastOps.pop()
+                // }
+            }
+            /* */
+
+            /* ADJUST CLUSTER - TRY 1 * /
             if( readSpeed > 0 && readSpeed != lastReadSpeed ){
-
                 speeds[ CLUSTER_WORKERS ] = readSpeed
-
                 console.error( 'tick' , new Date() , readSpeed , lastReadSpeed , CLUSTER_WORKERS , speeds[ CLUSTER_WORKERS ] , speeds )
                 lastReadSpeed = readSpeed
-
-                if( speeds[ CLUSTER_WORKERS - 1 ] && speeds[ CLUSTER_WORKERS - 1 ] > speeds[ CLUSTER_WORKERS ] ){
+                if( speeds[ CLUSTER_WORKERS - 1 ] && speeds[ CLUSTER_WORKERS - 1 ] > ( speeds[ CLUSTER_WORKERS ] * 0.8 ) ){
                     adjustCluster( CLUSTER_WORKERS - 1 )
-                
-                } else if( speeds[ CLUSTER_WORKERS + 1 ] && speeds[ CLUSTER_WORKERS + 1 ] > speeds[ CLUSTER_WORKERS ] ){
+                } else if( speeds[ CLUSTER_WORKERS + 1 ] && speeds[ CLUSTER_WORKERS + 1 ] > ( speeds[ CLUSTER_WORKERS ] * 1.2 ) ){
                     adjustCluster( CLUSTER_WORKERS + 1 )
-                
                 } else if( speeds[ CLUSTER_WORKERS + 1 ] == null ){
                     adjustCluster( CLUSTER_WORKERS + 1 )
                 }
-
-
-
-                // if( speeds[ CLUSTER_WORKERS ] == null ){
-                    
-
-
-                
-                // }  //else if( readSpeed != speeds[ CLUSTER_WORKERS ] ){
-    
-                    // console.error( 'tick' , new Date() , CLUSTER_WORKERS , speeds[ CLUSTER_WORKERS ] , readSpeed , speeds )
-    
-                    // speeds[ CLUSTER_WORKERS ] = readSpeed
-    
-                    // if( speeds[ CLUSTER_WORKERS ] 
-                    //     && speeds[ CLUSTER_WORKERS - 1 ]
-                    //     && speeds[ CLUSTER_WORKERS ] < speeds[ CLUSTER_WORKERS - 1 ] ){
-                    //         adjustCluster( CLUSTER_WORKERS - 1 )
-                    
-                    // } else if( speeds[ CLUSTER_WORKERS ] 
-                    //     && speeds[ CLUSTER_WORKERS + 1 ]
-                    //     && speeds[ CLUSTER_WORKERS ] < speeds[ CLUSTER_WORKERS + 1 ] ){
-                    //         adjustCluster( CLUSTER_WORKERS + 1 )
-                    
-                    // } else if( speeds[ CLUSTER_WORKERS ] && speeds[ CLUSTER_WORKERS + 1 ] == null ){
-                    //     adjustCluster( CLUSTER_WORKERS + 1 )
-                    // }
-                //}
-    
             }
+            /* */
 
-
-            workers[ lineCount % workers.length ].send( line )
+            Worker.pick().send( line )
 
         } else {
             work( line , ( message ) => { task.handleMessage( message ) } )
@@ -146,7 +176,7 @@ if( ! IS_CLUSTER || cluster.isMaster ){
 
         if( task.end ){ task.end() }
 
-        workers.forEach( w => {
+        Worker.all.forEach( w => {
             w.send( { method: 'exit' } )
         })
 
