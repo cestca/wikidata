@@ -3,18 +3,25 @@ const IS_CLUSTER = true
 //let CLUSTER_WORKERS = 2
 
 const cluster = IS_CLUSTER ? require( 'cluster' ) : null
-const tasks = require( './tasks.js' )
 const read = require( './reader.js' )
 const factory = require( './factory.js' )
 
 let TASK = process.argv[2]
 
-if( TASK == null || TASK.trim().length == 0 || ! Object.keys(tasks).includes(TASK) ){
-    console.error( 'bad input' , TASK )
+if( TASK == null || TASK.trim().length == 0 ){
+    console.error( 'bad input:' , TASK )
     process.exit(1)
 }
 
-let task = tasks[ TASK ]
+let task = null
+
+try{
+    task = require( './tasks/' + TASK + '.js' )
+
+} catch( error ){
+    console.error( 'task not found:' , TASK )
+    process.exit(2)
+}
 
 const work = ( line , reply ) => {
 
