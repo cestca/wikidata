@@ -1,0 +1,1 @@
+node main.js select_lang > test.json

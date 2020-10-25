@@ -5,6 +5,7 @@ const IS_CLUSTER = true
 const cluster = IS_CLUSTER ? require( 'cluster' ) : null
 const tasks = require( './tasks.js' )
 const read = require( './reader.js' )
+const factory = require( './factory.js' )
 
 let TASK = process.argv[2]
 
@@ -37,67 +38,20 @@ const work = ( line , reply ) => {
 }
 
 
-const Worker = {
-    all: [],
-    roundRobin: 0,
-
-    pick(){
-        let worker = this.all[ this.roundRobin % this.all.length ]
-        this.roundRobin += 1
-        return worker
-    },
-
-    // idle(){},
-
-    hire(){
-        let worker = cluster.fork()
-        worker.index = this.all.length
-        worker.on( 'message' , (message) => { task.handleMessage(message) } )
-        worker.on( 'online' , () => { console.error( 'WORKER IS ONLINE' , worker.index ) }  )
-        worker.on( 'listening' , () => { console.error( 'WORKER LISTENING' , worker.index ) } )
-        //worker.on( 'disconnect' , () => { console.error( 'WORKER DISCONNECTED' , worker.index ) } )
-        worker.on( 'exit' , () => { console.error( 'WORKER EXIT' , worker.index ) } )
-        this.all.push( worker )
-    },
-
-    fire(){
-        if( this.all.length > 1 ){
-            let worker = this.all.pop()
-            worker.send( { method: 'exit' } )    
-        }
-    }
-}
-
-// const adjustCluster = ( workerCount ) => {
-//     while( workers.length < workerCount ){
-//         createWorker()
-//     }
-//     while( workers.length > workerCount ){
-//         removeWorker()
-//     }
-// }
 
 if( ! IS_CLUSTER || cluster.isMaster ){
 
-    if( IS_CLUSTER ){
-        Worker.hire()
-        //Worker.hire()
+    if( task.start ){ task.start() }
 
-        //adjustCluster( CLUSTER_WORKERS )
+    if( IS_CLUSTER ){
+        factory.hire( cluster , task )
     }
 
-//    let lineCount = 0
-//    let speeds = []
-//    let lastReadSpeed = 0
     let lastReadSpeeds = []
-    // let lastOps = []
     // let maxSpeed = 0
-
     let lastOp = null
     let strikeDown = 0
     let strikeUp = 0
-
-    if( task.start ){ task.start() }
 
     read( SOURCE , ( line , readSpeed ) => {
 
@@ -115,21 +69,21 @@ if( ! IS_CLUSTER || cluster.isMaster ){
                 let op = null
                 if( lastReadSpeeds.length >= 2 ){
 
-                    if( lastReadSpeeds[0] > lastReadSpeeds[1] && lastOp == 'hire' ) {
+                    if( /* / */ lastReadSpeeds[0] >= lastReadSpeeds[1] && lastOp == 'hire' ) {
                         op = 'hire'
 
-                    } else if( lastReadSpeeds[0] < lastReadSpeeds[1] && lastOp == 'hire' ){
+                    } else if( /* \ */ lastReadSpeeds[0] < lastReadSpeeds[1] && lastOp == 'hire' ){
                         strikeDown += 1
                         if( strikeDown >= 3 ){
                             op = 'fire'
                             strikeDown = 0
                         }
 
-                    } else if( lastReadSpeeds[0] >= lastReadSpeeds[1] && lastOp == 'fire' ) {
+                    } else if( /* /= */ lastReadSpeeds[0] >= lastReadSpeeds[1] && lastOp == 'fire' ) {
                         op = null
                         strikeDown = 0
 
-                    } else if( lastReadSpeeds[0] < lastReadSpeeds[1] && lastOp == 'fire' ){
+                    } else if( /* \ */ lastReadSpeeds[0] < lastReadSpeeds[1] && lastOp == 'fire' ){
                         op = 'hire'
                         strikeDown = 0
                     }
@@ -139,7 +93,7 @@ if( ! IS_CLUSTER || cluster.isMaster ){
                 }
 
                 if( op != null ){
-                    Worker[ op ]()
+                    factory[ op ]( cluster , task )
                     lastOp = op
                 }
 
@@ -165,7 +119,7 @@ if( ! IS_CLUSTER || cluster.isMaster ){
             }
             /* */
 
-            Worker.pick().send( line )
+            factory.pick().send( line )
 
         } else {
             work( line , ( message ) => { task.handleMessage( message ) } )
@@ -176,7 +130,7 @@ if( ! IS_CLUSTER || cluster.isMaster ){
 
         if( task.end ){ task.end() }
 
-        Worker.all.forEach( w => {
+        factory.workers.forEach( w => {
             w.send( { method: 'exit' } )
         })
 
