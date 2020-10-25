@@ -4,6 +4,11 @@ module.exports = {
     workers: [],
     roundRobin: 0,
 
+    lastReadSpeeds: [],
+    //maxSpeed: 0,
+    lastOp: null,
+    strikeDown: 0,
+
     pick(){
         let worker = this.workers[ this.roundRobin % this.workers.length ]
         this.roundRobin += 1
@@ -34,14 +39,47 @@ module.exports = {
             let worker = this.workers.pop()
             worker.send( { method: 'exit' } )    
         }
+    },
+
+    adjust( cluster , task , currentSpeed ){
+
+        if( currentSpeed > 0 && this.lastReadSpeeds[0] != currentSpeed ){
+            //if( readSpeed > maxSpeed ){ maxSpeed = readSpeed }
+    
+            this.lastReadSpeeds.unshift( currentSpeed )
+            while( this.lastReadSpeeds.length > 2 ){
+                this.lastReadSpeeds.pop()
+            }
+            let op = null
+            if( this.lastReadSpeeds.length >= 2 ){
+    
+                if( /* / */ this.lastReadSpeeds[0] >= this.lastReadSpeeds[1] && this.lastOp == 'hire' ) {
+                    op = 'hire'
+    
+                } else if( /* \ */ this.lastReadSpeeds[0] < this.lastReadSpeeds[1] && this.lastOp == 'hire' ){
+                    this.strikeDown += 1
+                    if( this.strikeDown >= 3 ){
+                        op = 'fire'
+                        this.strikeDown = 0
+                    }
+    
+                } else if( /* /= */ this.lastReadSpeeds[0] >= this.lastReadSpeeds[1] && this.lastOp == 'fire' ) {
+                    op = null
+                    this.strikeDown = 0
+    
+                } else if( /* \ */ this.lastReadSpeeds[0] < this.lastReadSpeeds[1] && this.lastOp == 'fire' ){
+                    op = 'hire'
+                    this.strikeDown = 0
+                }
+    
+            } else {
+                op = 'hire'
+            }
+    
+            if( op != null ){
+                this[ op ]( cluster , task )
+                this.lastOp = op
+            }
+        }
     }
 }
-
-// const adjustCluster = ( workerCount ) => {
-//     while( workers.length < workerCount ){
-//         createWorker()
-//     }
-//     while( workers.length > workerCount ){
-//         removeWorker()
-//     }
-// }
