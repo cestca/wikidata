@@ -1,10 +1,7 @@
-const handleMessage = require( './common.js' ).handleMessage
-
 module.exports = {
 
     clusterable: true,
     isFirst: true,
-    handleMessage,
     start(){
         this.isFirst = true
         this.frProperties = Object.keys( require( '../property_stats.json' ) )
